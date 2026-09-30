@@ -1,0 +1,7 @@
+# Mantem as actions pinadas por SHA atualizadas (abre PR semanal com a nova versao).
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

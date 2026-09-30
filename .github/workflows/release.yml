@@ -1,0 +1,75 @@
+# Release do wg-client-manager
+# Disparo: push de tag vX.Y.Z (ex.: git tag v1.6.2 && git push origin v1.6.2)
+# Fluxo: CI completo -> tag = VERSION do script -> SHA256 -> release com notas do CHANGELOG.
+# Seguranca por Design: escrita liberada somente no job de publicacao; publicacao
+# via GitHub CLI (ja presente no runner), sem action de terceiros com token de escrita.
+name: Release
+
+on:
+  push:
+    tags: ['v*.*.*']
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+
+  publish:
+    name: Publicar release
+    needs: ci
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Tag igual a versao do script
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          V=$(sed -n 's/^VERSION="\(.*\)"/\1/p' wg-client-manager.sh)
+          if [ "$TAG" != "$V" ]; then
+            echo "::error::Tag v$TAG difere de VERSION=$V no script."
+            exit 1
+          fi
+          echo "VER=$V" >> "$GITHUB_ENV"
+
+      - name: Gerar SHA256
+        run: |
+          sha256sum wg-client-manager.sh > wg-client-manager.sh.sha256
+          cat wg-client-manager.sh.sha256
+
+      - name: Notas da release a partir do CHANGELOG
+        run: |
+          awk -v v="$VER" '
+            index($0, "## [" v "]") == 1 { f = 1; next }
+            /^## \[/ { f = 0 }
+            f
+          ' CHANGELOG.md > notes.md
+          if [ ! -s notes.md ]; then
+            echo "::error::CHANGELOG.md sem secao [$VER]."
+            exit 1
+          fi
+          SUM=$(cut -d' ' -f1 wg-client-manager.sh.sha256)
+          {
+            printf '\n## Verificacao de integridade\n\n'
+            printf "SHA256: \`%s\`\n\n" "$SUM"
+            printf '```bash\n'
+            printf 'curl -fsSLO %s/%s/releases/download/%s/wg-client-manager.sh\n' "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_REF_NAME"
+            printf 'curl -fsSLO %s/%s/releases/download/%s/wg-client-manager.sh.sha256\n' "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_REF_NAME"
+            printf 'sha256sum -c wg-client-manager.sh.sha256\n'
+            printf '```\n\n'
+            printf "Resultado esperado: \`wg-client-manager.sh: OK\`. Qualquer outro resultado: nao execute.\n"
+          } >> notes.md
+          cat notes.md
+
+      - name: Publicar
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            wg-client-manager.sh wg-client-manager.sh.sha256 \
+            --title "wg-client-manager $GITHUB_REF_NAME" \
+            --notes-file notes.md \
+            --verify-tag

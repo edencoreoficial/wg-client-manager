@@ -1,0 +1,5 @@
+# Garante LF nos scripts: CRLF (edicao no Windows) quebra o shell e altera o SHA256.
+*.sh text eol=lf
+*.md text eol=lf
+*.yml text eol=lf
+LICENSE text eol=lf

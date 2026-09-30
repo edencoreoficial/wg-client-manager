@@ -1,0 +1,80 @@
+# CI do wg-client-manager
+# Seguranca por Design: permissao somente leitura; actions de terceiros pinadas
+# por SHA de commit (tag mutavel nao e confiavel); Dependabot mantem atualizado.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: ShellCheck, sintaxe e versao
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Instalar ferramentas
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck dash busybox
+
+      - name: ShellCheck
+        run: shellcheck -s sh wg-client-manager.sh tests/smoke.sh
+
+      - name: Sintaxe em dash, bash e busybox ash
+        run: |
+          dash -n wg-client-manager.sh
+          bash -n wg-client-manager.sh
+          busybox sh -n wg-client-manager.sh
+
+      - name: Padrao de escrita (sem travessao)
+        run: |
+          if grep -rn --include='*.sh' --include='*.md' "$(printf '\342\200\224')" .; then
+            echo "::error::Travessao (em dash) encontrado. Substitua por ':' ou ','."
+            exit 1
+          fi
+
+      - name: Versao consistente (cabecalho, VERSION e CHANGELOG)
+        run: |
+          H=$(sed -n 's/^# Versao *: *\([0-9.]*\).*/\1/p' wg-client-manager.sh)
+          V=$(sed -n 's/^VERSION="\(.*\)"/\1/p' wg-client-manager.sh)
+          C=$(sed -n 's/^## \[\([0-9.]*\)\].*/\1/p' CHANGELOG.md | head -n1)
+          echo "cabecalho=$H VERSION=$V CHANGELOG=$C"
+          if [ "$H" != "$V" ] || [ "$V" != "$C" ]; then
+            echo "::error::Versoes divergentes: cabecalho=$H VERSION=$V CHANGELOG=$C"
+            exit 1
+          fi
+
+  smoke:
+    name: Teste de fumaca (${{ matrix.distro }})
+    needs: lint
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - distro: debian
+            image: debian:stable-slim
+            setup: apt-get update -qq && apt-get install -y -qq --no-install-recommends wireguard-tools iproute2
+          - distro: fedora
+            image: fedora:latest
+            setup: dnf install -y -q wireguard-tools iproute
+          - distro: alpine
+            image: alpine:latest
+            setup: apk add --no-cache wireguard-tools iproute2
+          - distro: archlinux
+            image: archlinux:latest
+            setup: pacman -Sy --noconfirm --needed wireguard-tools iproute2
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # O container roda via docker direto: actions em JavaScript nao funcionam
+      # dentro de imagens musl (Alpine). Sem --privileged e sem rede do host.
+      - name: Executar tests/smoke.sh em ${{ matrix.image }}
+        run: |
+          docker run --rm -v "$PWD:/src:ro" -w /src "${{ matrix.image }}" \
+            sh -c '${{ matrix.setup }} >/dev/null && sh tests/smoke.sh ./wg-client-manager.sh'
