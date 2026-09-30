@@ -39,9 +39,9 @@ expect_rc 1 "nome de tunel invalido e recusado" sh "$SCRIPT" --create --name "WG
 
 # check "descricao" comando... -> PASS/FAIL conforme o codigo de saida
 check() { _d=$1; shift; if "$@"; then ok "$_d"; else fail "$_d"; fi; }
-# shellcheck disable=SC2329  # invocadas indiretamente via check()
+# shellcheck disable=SC2317,SC2329  # invocadas indiretamente via check() (0.9: SC2317, 0.10+: SC2329)
 has()   { printf '%s\n' "$1" | grep -q "$2"; }
-# shellcheck disable=SC2329
+# shellcheck disable=SC2317,SC2329
 same()  { [ -n "$1" ] && [ "$1" = "$2" ]; }
 perm()  { stat -c '%a' "$1" 2>/dev/null || stat -f '%Lp' "$1"; }
 
