@@ -2,7 +2,9 @@
 
 Script em shell para criar, operar e diagnosticar clientes WireGuard em qualquer distribuição Linux, com menu interativo ou modo automatizado.
 
-Projeto da **EdenCore**, comunidade de Infraestrutura de TI. Instrutor: **Daniel Selbach Figueiró**.
+Projeto da **EdenCore**, comunidade de Infraestrutura de TI. 
+
+Instrutor: **Daniel Selbach Figueiró**.
 
 [![CI](https://github.com/edencoreoficial/wg-client-manager/actions/workflows/ci.yml/badge.svg)](https://github.com/edencoreoficial/wg-client-manager/actions/workflows/ci.yml)
 
